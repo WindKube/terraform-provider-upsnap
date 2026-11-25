@@ -185,6 +185,7 @@ func stringWithEnv(v types.String, env string) string {
 func (p *UpSnapProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewDeviceResource,
+		NewPortResource,
 	}
 }
 
