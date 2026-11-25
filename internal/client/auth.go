@@ -131,6 +131,11 @@ func (c *Client) setTokenLocked(token string) error {
 	return nil
 }
 
+// Token returns the current auth token, logging in or refreshing it first when needed.
+func (c *Client) Token(ctx context.Context) (string, error) {
+	return c.authToken(ctx)
+}
+
 // Authenticate obtains or verifies a token now so that bad credentials fail fast.
 func (c *Client) Authenticate(ctx context.Context) error {
 	if _, err := c.authToken(ctx); err != nil {

@@ -82,6 +82,55 @@ jobs:
           cache: true
       - run: go test -race -cover ./...
 
+  acceptance:
+    name: Acceptance (${{ matrix.cli }} ${{ matrix.version }})
+    needs: build
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cli: terraform
+            version: '1.13.*'
+          - cli: terraform
+            version: '1.14.*'
+          - cli: terraform
+            version: latest
+          - cli: opentofu
+            version: latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: useblacksmith/setup-go@647ac649bd5b480f2a262e3e3e5f4d150ed452ad # v6.0.1
+        with:
+          go-version-file: go.mod
+          cache: true
+      - if: matrix.cli == 'terraform'
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ matrix.version }}
+          terraform_wrapper: false
+      - if: matrix.cli == 'opentofu'
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: ${{ matrix.version }}
+          tofu_wrapper: false
+      - if: matrix.cli == 'opentofu'
+        run: |
+          echo "TF_ACC_TERRAFORM_PATH=$(command -v tofu)" >> "$GITHUB_ENV"
+          echo "TF_ACC_PROVIDER_HOST=registry.opentofu.org" >> "$GITHUB_ENV"
+      - name: Start UpSnap and create the test superuser
+        run: make testacc-up
+      - name: Acceptance tests
+        run: make testacc
+      - name: UpSnap logs
+        if: failure()
+        run: docker compose logs upsnap
+
   actionlint:
     name: actionlint
     runs-on: blacksmith-4vcpu-ubuntu-2404
