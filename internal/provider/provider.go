@@ -186,6 +186,7 @@ func (p *UpSnapProvider) Resources(_ context.Context) []func() resource.Resource
 	return []func() resource.Resource{
 		NewDeviceResource,
 		NewPortResource,
+		NewGroupResource,
 	}
 }
 
@@ -193,6 +194,8 @@ func (p *UpSnapProvider) DataSources(_ context.Context) []func() datasource.Data
 	return []func() datasource.DataSource{
 		NewDeviceDataSource,
 		NewDevicesDataSource,
+		NewGroupDataSource,
+		NewGroupsDataSource,
 	}
 }
 
