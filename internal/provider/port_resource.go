@@ -244,5 +244,5 @@ func (r *portResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 }
 
 func (r *portResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	importByID(ctx, req, resp, "", nil)
+	importByID(ctx, req, resp, nil)
 }

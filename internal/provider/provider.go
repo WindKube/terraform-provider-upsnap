@@ -187,6 +187,8 @@ func (p *UpSnapProvider) Resources(_ context.Context) []func() resource.Resource
 		NewDeviceResource,
 		NewPortResource,
 		NewGroupResource,
+		NewUserResource,
+		NewPermissionResource,
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
@@ -90,6 +91,13 @@ func testAccImportSteps(address string) []resource.TestStep {
 // block that sets identity instead of id (Terraform 1.12+).
 func testAccIdentityTest(t *testing.T, address, config string) {
 	t.Helper()
+	testAccIdentityTestWithImportPlan(t, address, config)
+}
+
+// testAccIdentityTestWithImportPlan is testAccIdentityTest for resources whose import plans a
+// change, such as a user whose password cannot be read back; checks assert what that change is.
+func testAccIdentityTestWithImportPlan(t *testing.T, address, config string, checks ...plancheck.PlanCheck) {
+	t.Helper()
 	testAccSkipOpenTofu(t)
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -104,9 +112,11 @@ func testAccIdentityTest(t *testing.T, address, config string) {
 				},
 			},
 			{
-				ResourceName:    address,
-				ImportState:     true,
-				ImportStateKind: resource.ImportBlockWithResourceIdentity,
+				ResourceName:       address,
+				ImportState:        true,
+				ImportStateKind:    resource.ImportBlockWithResourceIdentity,
+				ExpectNonEmptyPlan: len(checks) > 0,
+				ImportPlanChecks:   resource.ImportPlanChecks{PreApply: checks},
 			},
 		},
 	})

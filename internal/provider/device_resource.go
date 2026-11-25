@@ -366,5 +366,5 @@ func (r *deviceResource) Delete(ctx context.Context, req resource.DeleteRequest,
 }
 
 func (r *deviceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	importByID(ctx, req, resp, "", nil)
+	importByID(ctx, req, resp, nil)
 }

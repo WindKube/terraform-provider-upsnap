@@ -54,11 +54,17 @@ func setIDIdentity(ctx context.Context, identity interface {
 	diags.Append(identity.Set(ctx, idIdentityModel{ID: types.StringValue(id)})...)
 }
 
-// importByID passes a record ID through from either the import ID or the identity. When
-// lookup is set, IDs of the form "<prefix>:<value>" are resolved to a record ID with it.
-func importByID(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, prefix string, lookup func(ctx context.Context, value string) (string, error)) {
-	if prefix != "" && lookup != nil && strings.HasPrefix(req.ID, prefix+":") {
-		value := strings.TrimPrefix(req.ID, prefix+":")
+type importLookup func(ctx context.Context, value string) (string, error)
+
+// importByID passes a record ID through from either the import ID or the identity. Import IDs
+// of the form "<prefix>:<value>" are resolved to a record ID with the matching lookup.
+func importByID(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse, lookups map[string]importLookup) {
+	if prefix, value, ok := strings.Cut(req.ID, ":"); ok {
+		lookup, known := lookups[prefix]
+		if !known {
+			resp.Diagnostics.AddError("Invalid import ID", fmt.Sprintf("Unknown import ID prefix %q in %q. Import by record ID%s.", prefix, req.ID, importFormats(lookups)))
+			return
+		}
 		id, err := lookup(ctx, value)
 		if err != nil {
 			resp.Diagnostics.AddError("Cannot import", importLookupError(prefix, value, err))
@@ -68,6 +74,18 @@ func importByID(ctx context.Context, req resource.ImportStateRequest, resp *reso
 		return
 	}
 	resource.ImportStatePassthroughWithIdentity(ctx, path.Root("id"), path.Root("id"), req, resp)
+}
+
+func importFormats(lookups map[string]importLookup) string {
+	if len(lookups) == 0 {
+		return ""
+	}
+	formats := make([]string, 0, len(lookups))
+	for prefix := range lookups {
+		formats = append(formats, fmt.Sprintf("%q", prefix+":<value>"))
+	}
+	slices.Sort(formats)
+	return " or with " + strings.Join(formats, ", ")
 }
 
 func importLookupError(prefix, value string, err error) string {
