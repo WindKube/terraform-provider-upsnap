@@ -203,5 +203,5 @@ func (p *UpSnapProvider) DataSources(_ context.Context) []func() datasource.Data
 }
 
 func (p *UpSnapProvider) Actions(_ context.Context) []func() action.Action {
-	return nil
+	return append(deviceActionFactories(), groupActionFactories()...)
 }
