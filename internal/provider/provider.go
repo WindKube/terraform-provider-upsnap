@@ -183,11 +183,16 @@ func stringWithEnv(v types.String, env string) string {
 }
 
 func (p *UpSnapProvider) Resources(_ context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		NewDeviceResource,
+	}
 }
 
 func (p *UpSnapProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		NewDeviceDataSource,
+		NewDevicesDataSource,
+	}
 }
 
 func (p *UpSnapProvider) Actions(_ context.Context) []func() action.Action {
