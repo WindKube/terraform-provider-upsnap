@@ -98,17 +98,38 @@ func (m *portModel) fill(p *client.Port, deviceID string) {
 	m.DeviceID = types.StringValue(deviceID)
 }
 
-func (r *portResource) link(ctx context.Context, deviceID, portID string) error {
-	_, err := r.client.Devices.Update(ctx, deviceID, map[string]any{"ports+": portID})
+type portLink struct {
+	Linked bool `json:"ports"`
+}
+
+func (r *portResource) setLink(ctx context.Context, deviceID, portID string, linked bool) error {
+	modifier := "ports-"
+	if linked {
+		modifier = "ports+"
+	}
+	write := func(ctx context.Context) (*client.Device, error) {
+		return r.client.Devices.Update(ctx, deviceID, map[string]any{modifier: portID})
+	}
+	device, err := write(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = r.client.Devices.Settle(ctx, deviceID, device, client.Watch[client.Device]{
+		Fields:  func(d *client.Device) any { return portLink{Linked: slices.Contains(d.Ports, portID)} },
+		Rewrite: write,
+	})
 	return err
 }
 
+func (r *portResource) link(ctx context.Context, deviceID, portID string) error {
+	return r.setLink(ctx, deviceID, portID, true)
+}
+
 func (r *portResource) unlink(ctx context.Context, deviceID, portID string) error {
-	_, err := r.client.Devices.Update(ctx, deviceID, map[string]any{"ports-": portID})
-	if client.IsNotFound(err) {
-		return nil
+	if err := r.setLink(ctx, deviceID, portID, false); err != nil && !client.IsNotFound(err) {
+		return err
 	}
-	return err
+	return nil
 }
 
 // owner returns the device whose ports relation holds portID, preferring want when several do.
@@ -198,7 +219,7 @@ func (r *portResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	port, err := r.client.Ports.Update(ctx, state.ID.ValueString(), plan.input())
+	port, err := r.update(ctx, state.ID.ValueString(), state.input(), plan.input())
 	if err != nil {
 		apiErrorDiag(&resp.Diagnostics, "update port", err)
 		return
@@ -210,6 +231,23 @@ func (r *portResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	plan.fill(port, plan.DeviceID.ValueString())
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 	setIDIdentity(ctx, resp.Identity, port.ID, &resp.Diagnostics)
+}
+
+func (r *portResource) update(ctx context.Context, id string, from, to client.PortInput) (*client.Port, error) {
+	if from == to {
+		return r.client.Ports.Get(ctx, id)
+	}
+	write := func(ctx context.Context) (*client.Port, error) {
+		return r.client.Ports.Update(ctx, id, to)
+	}
+	port, err := write(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return r.client.Ports.Settle(ctx, id, port, client.Watch[client.Port]{
+		Fields:  func(p *client.Port) any { return client.PortInput{Name: p.Name, Number: p.Number, Link: p.Link} },
+		Rewrite: write,
+	})
 }
 
 func (r *portResource) relink(ctx context.Context, portID, from, to string, diags *diag.Diagnostics) {

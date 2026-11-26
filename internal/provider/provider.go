@@ -2,8 +2,11 @@ package provider
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/WindKube/terraform-provider-upsnap/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -33,7 +36,10 @@ type providerModel struct {
 	Token              types.String `tfsdk:"token"`
 	AuthCollection     types.String `tfsdk:"auth_collection"`
 	InsecureSkipVerify types.Bool   `tfsdk:"insecure_skip_verify"`
+	SettleTime         types.String `tfsdk:"settle_time"`
 }
+
+const defaultSettleTime = 5 * time.Second
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
@@ -88,6 +94,12 @@ func (p *UpSnapProvider) Schema(_ context.Context, _ provider.SchemaRequest, res
 				MarkdownDescription: "Skip TLS certificate verification. Can also be set with `UPSNAP_INSECURE_SKIP_VERIFY`.",
 				Optional:            true,
 			},
+			"settle_time": schema.StringAttribute{
+				MarkdownDescription: "How long to watch a device or port after changing it, rewriting the change if UpSnap's ping job reverts it " +
+					"(see [Known issues](#known-issues)). A Go duration, `5s` by default; `0s` turns the check off. " +
+					"Can also be set with `UPSNAP_SETTLE_TIME`.",
+				Optional: true,
+			},
 		},
 	}
 }
@@ -101,7 +113,7 @@ func (p *UpSnapProvider) Configure(ctx context.Context, req provider.ConfigureRe
 
 	for name, v := range map[string]interface{ IsUnknown() bool }{
 		"endpoint": cfg.Endpoint, "username": cfg.Username, "password": cfg.Password, "token": cfg.Token,
-		"auth_collection": cfg.AuthCollection, "insecure_skip_verify": cfg.InsecureSkipVerify,
+		"auth_collection": cfg.AuthCollection, "insecure_skip_verify": cfg.InsecureSkipVerify, "settle_time": cfg.SettleTime,
 	} {
 		if v.IsUnknown() {
 			resp.Diagnostics.AddAttributeError(path.Root(name), "Unknown UpSnap provider configuration",
@@ -136,6 +148,19 @@ func (p *UpSnapProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		}
 	}
 
+	settleTime := defaultSettleTime
+	if v := stringWithEnv(cfg.SettleTime, "UPSNAP_SETTLE_TIME"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err == nil && d < 0 {
+			err = errors.New("must not be negative")
+		}
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("settle_time"), "Invalid settle_time",
+				fmt.Sprintf("settle_time (or UPSNAP_SETTLE_TIME) %q is not a valid duration such as 5s: %s.", v, err))
+		}
+		settleTime = d
+	}
+
 	if endpoint == "" {
 		resp.Diagnostics.AddAttributeError(path.Root("endpoint"), "Missing UpSnap endpoint",
 			"Set the endpoint argument or the UPSNAP_ENDPOINT environment variable.")
@@ -160,6 +185,7 @@ func (p *UpSnapProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		AuthCollection:     authCollection,
 		InsecureSkipVerify: insecure,
 		UserAgent:          "terraform-provider-upsnap/" + p.version,
+		SettleTime:         settleTime,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid UpSnap provider configuration", err.Error())

@@ -33,12 +33,15 @@ type Config struct {
 	InsecureSkipVerify bool
 	UserAgent          string
 	HTTPClient         *http.Client
+	// SettleTime is how long Settle watches a written record; zero disables it.
+	SettleTime time.Duration
 }
 
 type Client struct {
 	baseURL    *url.URL
 	httpClient *http.Client
 	userAgent  string
+	settleTime time.Duration
 
 	authCollection string
 	username       string
@@ -96,6 +99,7 @@ func New(cfg Config) (*Client, error) {
 		baseURL:        u,
 		httpClient:     httpClient,
 		userAgent:      cfg.UserAgent,
+		settleTime:     cfg.SettleTime,
 		authCollection: authCollection,
 		username:       cfg.Username,
 		password:       cfg.Password,

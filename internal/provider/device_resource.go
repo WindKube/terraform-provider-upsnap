@@ -339,7 +339,20 @@ func (r *deviceResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	device, err := r.client.Devices.Update(ctx, plan.ID.ValueString(), input)
+	write := func(ctx context.Context) (*client.Device, error) {
+		return r.client.Devices.Update(ctx, plan.ID.ValueString(), input)
+	}
+	device, err := write(ctx)
+	if err == nil {
+		device, err = r.client.Devices.Settle(ctx, plan.ID.ValueString(), device, client.Watch[client.Device]{
+			Fields: func(d *client.Device) any {
+				var m deviceModel
+				m.fill(ctx, d, &resp.Diagnostics)
+				return m.input(ctx, &resp.Diagnostics)
+			},
+			Rewrite: write,
+		})
+	}
 	if err != nil {
 		apiErrorDiag(&resp.Diagnostics, "update device", err)
 		return

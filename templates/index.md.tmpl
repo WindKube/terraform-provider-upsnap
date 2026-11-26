@@ -34,6 +34,7 @@ Instead of a password you can pass a PocketBase `token`, for example a superuser
 | `token`                | `UPSNAP_TOKEN`                |
 | `auth_collection`      | `UPSNAP_AUTH_COLLECTION`      |
 | `insecure_skip_verify` | `UPSNAP_INSECURE_SKIP_VERIFY` |
+| `settle_time`          | `UPSNAP_SETTLE_TIME`          |
 
 A `token` set in the configuration wins over everything else; otherwise `username` and `password` win over a token from the environment.
 
@@ -52,7 +53,25 @@ Waking, shutting down, suspending and rebooting are imperative, so they are [act
 
 ## Known issues
 
-UpSnap 5.7.3's ping job writes back the whole device record when a device's status changes, so a change to a device, its ports or its groups that
-lands during a ping can be reverted by UpSnap. The next `terraform plan` shows it as drift and an apply fixes it.
+### UpSnap can revert device and port changes
+
+UpSnap 5.7.3's ping job loads every device, pings it, and, when the status changed, saves the copy it loaded before the ping.
+Any change made in between (to a device's fields, groups or ports) is silently reverted; ports are saved the same way after
+their port check.
+
+The provider works around this: after it changes a device, links or moves a port, or changes a port, it watches the record
+for `settle_time` (5 seconds by default) and writes the change again as soon as UpSnap reverts it, up to three times. If UpSnap
+keeps reverting it, the apply fails with an error that lists the reverted fields.
+
+The default covers UpSnap's built-in ping, which takes at most about 2.5 seconds. Raise `settle_time` if the error shows up,
+which can happen when:
+
+* a device has a slow custom `ping_cmd` (UpSnap gives it no timeout),
+* a device has many ports (each port check takes up to half a second), or
+* a wake, shutdown, sleep or reboot is still running for the device (UpSnap saves the device when it finishes, and a reboot
+  waits 15 seconds).
+
+Set `settle_time = "0s"` to turn the check off, for example when UpSnap's `lazy_ping` is on and nobody has the dashboard open,
+which stops the ping job.
 
 {{ .SchemaMarkdown | trimspace }}

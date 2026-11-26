@@ -35,6 +35,8 @@ type Device struct {
 	Updated             string   `json:"updated"`
 }
 
+func (d *Device) UpdatedAt() string { return d.Updated }
+
 // DeviceInput holds the writable device fields. Ports are linked by the port endpoints
 // and status is owned by UpSnap, so neither is sent.
 type DeviceInput struct {
@@ -68,12 +70,15 @@ type DeviceInput struct {
 }
 
 type Port struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Number int64  `json:"number"`
-	Link   string `json:"link"`
-	Status bool   `json:"status"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Number  int64  `json:"number"`
+	Link    string `json:"link"`
+	Status  bool   `json:"status"`
+	Updated string `json:"updated"`
 }
+
+func (p *Port) UpdatedAt() string { return p.Updated }
 
 type PortInput struct {
 	Name   string `json:"name"`
