@@ -22,7 +22,7 @@ func configureProvider(t *testing.T, attrs map[string]string) string {
 	}
 	attrTypes := map[string]tftypes.Type{
 		"endpoint": tftypes.String, "username": tftypes.String, "password": tftypes.String,
-		"token": tftypes.String, "auth_collection": tftypes.String, "insecure_skip_verify": tftypes.Bool,
+		"token": tftypes.String, "auth_collection": tftypes.String, "insecure_skip_verify": tftypes.Bool, "settle_time": tftypes.String,
 	}
 	objType := tftypes.Object{AttributeTypes: attrTypes}
 	values := map[string]tftypes.Value{}
@@ -61,6 +61,22 @@ func TestAccProvider_configure(t *testing.T) {
 	t.Run("password", func(t *testing.T) {
 		if diags := configureProvider(t, map[string]string{"endpoint": endpoint, "username": username, "password": password}); diags != "" {
 			t.Fatal(diags)
+		}
+	})
+
+	t.Run("settle_time", func(t *testing.T) {
+		base := map[string]string{"endpoint": endpoint, "username": username, "password": password}
+		for _, v := range []string{"0s", "10s"} {
+			base["settle_time"] = v
+			if diags := configureProvider(t, base); diags != "" {
+				t.Fatalf("%s: %s", v, diags)
+			}
+		}
+		for _, v := range []string{"5", "-1s"} {
+			base["settle_time"] = v
+			if diags := configureProvider(t, base); !strings.Contains(diags, "Invalid settle_time") {
+				t.Fatalf("%s: got %q", v, diags)
+			}
 		}
 	})
 

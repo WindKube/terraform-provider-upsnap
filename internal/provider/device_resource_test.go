@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/WindKube/terraform-provider-upsnap/internal/client"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
@@ -139,6 +140,36 @@ func TestAccDeviceResource(t *testing.T) {
 
 func TestAccDeviceResource_identity(t *testing.T) {
 	testAccIdentityTest(t, "upsnap_device.test", testAccDeviceConfigBasic(testAccName("device")))
+}
+
+func TestAccDeviceResource_survivesPingJob(t *testing.T) {
+	name := testAccName("device")
+	address := "upsnap_device.test"
+	config := func(description string) string {
+		return fmt.Sprintf(`
+resource "upsnap_device" "test" {
+  name        = %q
+  ip          = "192.0.2.11"
+  mac         = "aa:bb:cc:dd:ee:11"
+  description = %q
+  ping_cmd    = %q
+}
+`, name, description, testAccRacingPingCmd(name))
+	}
+	description := func(d *client.Device) string { return d.Description }
+
+	var steps []resource.TestStep
+	for i := range 5 {
+		steps = append(steps, resource.TestStep{
+			Config: config(fmt.Sprintf("write %d", i)),
+			Check:  testAccCheckDeviceStays(t, address, "description", description),
+		})
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t); testAccRacingPingJob(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps:                    steps,
+	})
 }
 
 func TestAccDeviceResource_validation(t *testing.T) {

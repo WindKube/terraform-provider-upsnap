@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/WindKube/terraform-provider-upsnap/internal/client"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
@@ -120,6 +122,52 @@ func testAccIdentityTestWithImportPlan(t *testing.T, address, config string, che
 			},
 		},
 	})
+}
+
+// testAccRacingPingJob runs UpSnap's ping job every 3 seconds for the rest of the test. Devices
+// using testAccRacingPingCmd then flip their status on every ping, 2 seconds after the job loaded
+// them, so UpSnap saves a stale copy of the device and reverts any write made in between.
+func testAccRacingPingJob(t *testing.T) {
+	t.Helper()
+	c := testAccClient(t)
+	settings, err := c.SettingsPrivate.List(t.Context(), client.ListOptions{})
+	if err != nil || len(settings) != 1 {
+		t.Fatalf("reading settings_private: %v (%d records)", err, len(settings))
+	}
+	id, interval := settings[0].ID, settings[0].Interval
+	if _, err := c.SettingsPrivate.Update(t.Context(), id, map[string]string{"interval": "*/3 * * * * *"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := c.SettingsPrivate.Update(context.Background(), id, map[string]string{"interval": interval}); err != nil {
+			t.Errorf("restoring ping interval: %v", err)
+		}
+	})
+}
+
+func testAccRacingPingCmd(name string) string {
+	flag := "/tmp/" + name
+	return fmt.Sprintf("sleep 2; if [ -f %[1]s ]; then rm %[1]s; else touch %[1]s; false; fi", flag)
+}
+
+// testAccCheckDeviceStays waits until UpSnap's ping job has had a chance to revert the device
+// and then checks that the API still has the attribute's value.
+func testAccCheckDeviceStays(t *testing.T, address, field string, get func(*client.Device) string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[address]
+		if !ok {
+			return fmt.Errorf("%s not in state", address)
+		}
+		time.Sleep(4 * time.Second)
+		d, err := testAccClient(t).Devices.Get(context.Background(), rs.Primary.ID)
+		if err != nil {
+			return err
+		}
+		if want := rs.Primary.Attributes[field]; get(d) != want {
+			return fmt.Errorf("UpSnap reverted %s: API has %q, state has %q", field, get(d), want)
+		}
+		return nil
+	}
 }
 
 // testAccDriftDeletedSteps deletes the resource behind Terraform's back, expects the refresh
