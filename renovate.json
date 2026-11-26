@@ -1,0 +1,39 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits"
+  ],
+  "postUpdateOptions": ["gomodTidy"],
+  "packageRules": [
+    {
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": false
+    },
+    {
+      "groupName": "terraform-plugin",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["github.com/hashicorp/terraform-plugin-{/,}**"]
+    },
+    {
+      "groupName": "github-actions",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest"]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "UpSnap image tag used by the acceptance tests",
+      "managerFilePatterns": ["/(^|/)GNUmakefile$/", "/(^|/)docker-compose\\.yml$/", "/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "UPSNAP_VERSION\\s*\\??[:=]\\s*\"?(?<currentValue>\\d+\\.\\d+\\.\\d+)\"?",
+        "ghcr\\.io/seriousm4x/upsnap:(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "ghcr.io/seriousm4x/upsnap",
+      "datasourceTemplate": "docker"
+    }
+  ]
+}

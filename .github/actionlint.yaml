@@ -1,0 +1,6 @@
+# Declaring the Blacksmith labels keeps actionlint's runs-on check meaningful.
+self-hosted-runner:
+  labels:
+    - blacksmith-2vcpu-ubuntu-2404
+    - blacksmith-4vcpu-ubuntu-2404
+    - blacksmith-4vcpu-ubuntu-2404-arm
